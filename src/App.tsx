@@ -10,7 +10,7 @@ import {
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
-import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BrowserQRCodeReader } from "@zxing/browser";
 import toast, { Toaster } from "react-hot-toast";
 import dayjs from "dayjs";
 import Avatar from "@mui/material/Avatar";
@@ -34,7 +34,7 @@ interface Asistencia {
 export default function App() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const codeReader = useRef(new BrowserMultiFormatReader());
+  const codeReader = useRef(new BrowserQRCodeReader());
   const [escaneando, setEscaneando] = useState(false);
   const [asistencias, setAsistencias] = useState<Asistencia[]>([]);
   const [camaraActiva, setCamaraActiva] = useState(false);
@@ -75,7 +75,7 @@ export default function App() {
             }
           },
           videoRef.current,
-          (result) => {
+          (result, error) => {
             if (result && !escaneando) {
               setEscaneando(true);
 
@@ -85,11 +85,26 @@ export default function App() {
                 setEscaneando(false);
               }, 2000);
             }
+            if (
+              error &&
+              error.name !== "NotFoundException"
+            ) {
+              console.error(
+                "Error del lector QR:",
+                error
+              );
+            }
           }
         );
       } catch (e) {
-        console.error(e);
-        toast.error("No fue posible abrir la cámara.");
+        console.error(
+          "Error al abrir la cámara:",
+          e
+        );
+
+        toast.error(
+          "No fue posible abrir la cámara."
+        );
       }
     };
     abrir();
@@ -459,6 +474,8 @@ export default function App() {
         a.fecha === fecha
       );
 
+      console.log(asistencias)
+
       if (yaExiste) {
         toast.error("El empleado ya registró entrada.");
         return;
@@ -476,6 +493,7 @@ export default function App() {
         ...prev
       ]);
 
+      console.log(nuevaAsistencia)
       toast.success("Entrada registrada correctamente.");
     }
     catch {
