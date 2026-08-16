@@ -15,8 +15,8 @@ import toast, { Toaster } from "react-hot-toast";
 import dayjs from "dayjs";
 import Avatar from "@mui/material/Avatar";
 import Chip from "@mui/material/Chip";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+import JsBarcode from "jsbarcode";
 
 interface EmpleadoQR {
   proyecto: string;
@@ -109,7 +109,8 @@ export default function App() {
   };
 
 
-  const descargarPDF = () => {
+  const descargarExcel = async () => {
+
     const hoy = dayjs().format("YYYY-MM-DD");
 
     const registrosHoy = asistencias.filter(
@@ -117,60 +118,328 @@ export default function App() {
     );
 
     if (registrosHoy.length === 0) {
-      toast.error("No existen asistencias registradas el día de hoy.");
+      toast.error(
+        "No existen asistencias registradas el día de hoy."
+      );
       return;
     }
 
-    const pdf = new jsPDF();
-    pdf.setFontSize(18);
-    pdf.text(
-      "REGISTRO DE ASISTENCIA",
-      105,
-      18,
-      {
-        align: "center"
-      }
-    );
+    try {
 
-    pdf.setFontSize(11);
-    pdf.text(
-      "Fecha: " + dayjs().format("DD/MM/YYYY"),
-      14,
-      30
-    );
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(
+        "Asistencia"
+      );
+      worksheet.columns = [
 
-    autoTable(pdf, {
-      startY: 40,
-      head: [[
-        "Empleado",
+        {
+          header: "ID Empleado",
+          key: "idEmpleado",
+          width: 24
+        },
+
+        {
+          header: "Nombre",
+          key: "nombre",
+          width: 30
+        },
+
+        {
+          header: "Fecha",
+          key: "fecha",
+          width: 16
+        },
+
+        {
+          header: "Hora Entrada",
+          key: "hora",
+          width: 18
+        },
+
+        {
+          header: "Firma",
+          key: "firma",
+          width: 30
+        }
+
+      ];
+      worksheet.mergeCells(
+        "A1:E1"
+      );
+      const titulo = worksheet.getCell("A1");
+      titulo.value = "REGISTRO DE ASISTENCIA";
+      titulo.font = {
+        bold: true,
+        size: 18
+      };
+
+      titulo.alignment = {
+        horizontal: "center",
+        vertical: "middle"
+      };
+      worksheet.getRow(1).height = 30;
+      worksheet.mergeCells(
+        "A2:E2"
+      );
+
+      const fechaReporte =
+        worksheet.getCell("A2");
+
+      fechaReporte.value =
+        `Fecha del reporte: ${dayjs().format("DD/MM/YYYY")}`;
+
+      fechaReporte.font = {
+        bold: true,
+        size: 11
+      };
+
+      fechaReporte.alignment = {
+        horizontal: "center",
+        vertical: "middle"
+      };
+
+      const headerRow =
+        worksheet.getRow(4);
+
+      headerRow.values = [
+        "ID Empleado",
         "Nombre",
-        "Hora Entrada"
-      ]],
-      body: registrosHoy.map(r => [
-        r.idEmpleado,
-        r.nombre,
-        r.hora
-      ]),
+        "Fecha",
+        "Hora Entrada",
+        "Firma"
+      ];
 
-      styles: {
-        fontSize: 10
-      },
+      headerRow.height = 25;
 
-      headStyles: {
-        fillColor: [41, 98, 255]
+      headerRow.eachCell(cell => {
+
+        cell.font = {
+          bold: true,
+          color: {
+            argb: "FFFFFFFF"
+          }
+        };
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: {
+            argb: "FF2962FF"
+          }
+        };
+
+        cell.alignment = {
+          horizontal: "center",
+          vertical: "middle"
+        };
+
+        cell.border = {
+          top: {
+            style: "thin"
+          },
+          bottom: {
+            style: "thin"
+          },
+          left: {
+            style: "thin"
+          },
+          right: {
+            style: "thin"
+          }
+        };
+
+      });
+
+      for (
+        let i = 0;
+        i < registrosHoy.length;
+        i++
+      ) {
+
+        const registro =
+          registrosHoy[i];
+
+        const fila = 5 + i;
+
+        const row =
+          worksheet.getRow(fila);
+
+        row.height = 55;
+
+        row.getCell(1).value =
+          registro.idEmpleado;
+
+        row.getCell(2).value =
+          registro.nombre;
+
+        row.getCell(3).value =
+          dayjs(registro.fecha).format(
+            "DD/MM/YYYY"
+          );
+
+        row.getCell(4).value =
+          registro.hora;
+        row.getCell(5).value = "";
+
+        const canvas =
+          document.createElement("canvas");
+
+        JsBarcode(
+          canvas,
+          registro.idEmpleado,
+          {
+            format: "CODE128",
+            displayValue: true,
+            fontSize: 14,
+            height: 40,
+            margin: 5
+          }
+        );
+
+        const imagen =
+          canvas.toDataURL(
+            "image/png"
+          );
+
+        const imageId =
+          workbook.addImage({
+            base64: imagen,
+            extension: "png"
+          });
+
+        worksheet.addImage(
+          imageId,
+          {
+            tl: {
+              col: 0.1,
+              row: fila - 0.85
+            },
+            ext: {
+              width: 150,
+              height: 45
+            }
+          }
+        );
+
+        for (
+          let columna = 1;
+          columna <= 5;
+          columna++
+        ) {
+
+          const cell =
+            row.getCell(columna);
+
+          cell.alignment = {
+            horizontal: "center",
+            vertical: "middle"
+          };
+
+          cell.border = {
+
+            top: {
+              style: "thin",
+              color: {
+                argb: "FFD0D0D0"
+              }
+            },
+
+            bottom: {
+              style: "thin",
+              color: {
+                argb: "FFD0D0D0"
+              }
+            },
+
+            left: {
+              style: "thin",
+              color: {
+                argb: "FFD0D0D0"
+              }
+            },
+
+            right: {
+              style: "thin",
+              color: {
+                argb: "FFD0D0D0"
+              }
+            }
+
+          };
+
+        }
+
       }
-    });
 
-    pdf.text(
-      "Total de registros: " + registrosHoy.length,
-      14,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (pdf as any).lastAutoTable.finalY + 12
-    );
+      const filaTotal =
+        5 + registrosHoy.length + 1;
 
-    pdf.save(
-      "Asistencia_" + hoy + ".pdf"
-    );
+      worksheet.mergeCells(
+        `A${filaTotal}:D${filaTotal}`
+      );
+
+      const total =
+        worksheet.getCell(
+          `A${filaTotal}`
+        );
+
+      total.value =
+        `Total de registros: ${registrosHoy.length}`;
+
+      total.font = {
+        bold: true
+      };
+
+      total.alignment = {
+        horizontal: "right",
+        vertical: "middle"
+      };
+
+      const buffer =
+        await workbook.xlsx.writeBuffer();
+
+      const blob = new Blob(
+        [buffer],
+        {
+          type:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+      );
+
+      const url =
+        URL.createObjectURL(blob);
+
+      const link =
+        document.createElement("a");
+
+      link.href = url;
+
+      link.download =
+        `Asistencia_${hoy}.xlsx`;
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      toast.success(
+        "Excel generado correctamente."
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Error generando Excel:",
+        error
+      );
+
+      toast.error(
+        "No fue posible generar el archivo Excel."
+      );
+    }
   };
 
   const registrarQR = (texto: string) => {
@@ -249,7 +518,7 @@ export default function App() {
               <Button
                 variant="contained"
                 startIcon={<DownloadIcon />}
-                onClick={descargarPDF}
+                onClick={descargarExcel}
               >
                 Descargar
               </Button>
